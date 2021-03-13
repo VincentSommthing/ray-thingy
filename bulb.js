@@ -71,7 +71,7 @@ var fragShaderText = `#version 300 es
     void step() {
         lastDist = currDist;
         lastPos = rayPos;
-        rayPos += rayDir * max(abs(lastDist), 0.005);
+        rayPos += rayDir * max(abs(lastDist), 0.01);
         currDist = dist(rayPos);
     }
 
@@ -83,7 +83,7 @@ var fragShaderText = `#version 300 es
         }
 
         if(gettingSmall) {
-            //rayPos = lastDist * (rayPos - lastPos) / (lastPos - rayPos) + lastPos;
+            rayPos = lastDist * (rayPos - lastPos) / (lastDist - currDist) + lastPos;
             currDist = dist(rayPos);
         }
 
@@ -94,6 +94,7 @@ var fragShaderText = `#version 300 es
         seed = 15.9*u_numSamples + gl_FragCoord.x + u_resolution.x*gl_FragCoord.y;
 
         rayPos = u_camPos;
+        
         vec2 randOffset = u_pixelSize * vec2(kindaRand(1.0), kindaRand(3.0));
         rayDir = normalize(fragDir + vec3(randOffset, 0.0));
 
@@ -103,7 +104,7 @@ var fragShaderText = `#version 300 es
 
         
         if(dist(rayPos) <= lastDist && lastDist < 0.01) {//if touching the object, do all the ray calculations
-            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 0.8*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
+            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + .1*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
             march();
             col = float(!finalGettingSmall);
         } else {
