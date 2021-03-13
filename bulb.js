@@ -118,8 +118,6 @@ var fragShaderText = `#version 300 es
     }
 `;
 
-main();
-
 function getMousePos(canvas, evt) {
     var canvasStuff = canvas.getBoundingClientRect();
     return [
@@ -128,6 +126,7 @@ function getMousePos(canvas, evt) {
     ]
 };
 
+main();
 var mouseDown = false;
 document.body.onmousedown = function() { 
     mouseDown = true;
@@ -151,7 +150,7 @@ function main() {
         return;
     }
 
-    gl.clearColor(1.0, 0.7, 0.0, 0.4);
+    gl.clearColor(0.0, 0.7, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     //create shader
@@ -167,6 +166,7 @@ function main() {
     {
     gl.compileShader(vertexShader); //vertex shader
     if(!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+        alert(gl.getShaderInfoLog(vertexShader));
         console.error("compile vertex shader bad :(", gl.getShaderInfoLog(vertexShader));
         return;
     } else { console.log("vertex shader compiled :)"); }
@@ -183,11 +183,13 @@ function main() {
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
     if(!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        alert(gl.getProgramInfoLog(program));
         console.error("link program bad :(", gl.getProgramInfoLog(program));
         return;
     } else {console.log("program linked :)")}
     gl.validateProgram(program);
     if(!gl.getProgramParameter(program, gl.VALIDATE_STATUS)) {
+        alert(gl.getProgramInfoLog(program));
         console.log("validate program bad :(", gl.getProgramInfoLog(program));
         return;
     }
@@ -260,7 +262,7 @@ function main() {
     const targetTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, targetTexture);
     //size and format of texture
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 255, 255, 255]));
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
     //set filtering stuff
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
