@@ -45,13 +45,23 @@ var fragShaderText = `#version 300 es
     vec3 lastPos;
     float lastDist;
     float currDist;
-    float col;
+    vec3 appearanceCol;
+    vec3 surfaceCol;
     bool finalGettingSmall;
 
     float seed;
 
     float dist(vec3 pos) {
         return min(length(pos)-1.0, distance(pos, vec3(0.8, 0.8, -0.7))-0.2);
+    }
+
+    vec3 gradient(vec3 pos1) {
+        vec3 pos2 = pos1 + vec3(0.01);
+        return (vec3(dist(pos1)) - vec3(
+            dist(vec3(pos2.x, pos1.y, pos1.z)),
+            dist(vec3(pos1.x, pos2.y, pos1.z)),
+            dist(vec3(pos1.x, pos1.y, pos2.z))
+        )) / (pos1 - pos2);
     }
 
     float kindaRand(float x) {
@@ -101,21 +111,21 @@ var fragShaderText = `#version 300 es
         //first march to object
         lastDist = 10.0;
         march();
-
+        vec3 normal = gradient(rayPos);
         
         if(dist(rayPos) <= lastDist && lastDist < 0.01) {//if touching the object, do all the ray calculations
-            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + .1*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
+            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 3.0*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
             march();
-            col = float(!finalGettingSmall);
+            appearanceCol = vec3(!finalGettingSmall) * dot(normal, rayDir);
         } else {
-            col = 0.0;
+            appearanceCol = vec3(0.0);
         }
 
-        col = (col + u_numSamples * texture(u_texture, fragTexCoord).y) / (u_numSamples + 1.0);
+        appearanceCol = (appearanceCol + u_numSamples * texture(u_texture, fragTexCoord).xyz) / (u_numSamples + 1.0);
 
         //col = texture(u_texture, fragTexCoord).x;
 
-        fragColor = vec4(vec3(col), 1.0);
+        fragColor = vec4(appearanceCol, 1.0);
     }
 `;
 
