@@ -182,7 +182,9 @@ var fragShaderText = `#version 300 es
         int finalI = 0;
 
         for(int i = 0; i < 4 && touching; i++) { 
-            multiplier *= hsv2rgb(vec3(r*r*0.9+0.6, 1., 1.)); //multiply by color
+            float rSq = r*r;
+
+            multiplier *= hsv2rgb(vec3(rSq*0.9+0.6, 1., 1.)); //multiply by color
             normal = findNormal(rayPos);
             hitPos = rayPos;
             lastHitDist = lastDist;
@@ -192,6 +194,9 @@ var fragShaderText = `#version 300 es
             
             bool idkGettingSmall = finalGettingSmall;
 
+            //add emission
+            appearanceCol += multiplier * float(0.4 < rSq && rSq < 0.6) * 2.;
+
             //next event estimation
             //shoot ray at the light
             rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 1.8*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
@@ -199,6 +204,8 @@ var fragShaderText = `#version 300 es
            
             //add to the appearanceCol if there is nothing blocking the path of the light
             appearanceCol += vec3(!finalGettingSmall)*dot(normal, rayDir)*vec3(1.0, 0.8, 0.7) * multiplier;
+
+
 
             //shoot ray in random direction
             rayDir = randSphere(normal, float(i)*89.13);
@@ -211,9 +218,11 @@ var fragShaderText = `#version 300 es
             march();
             
         }
+        //appearanceCol = hsv2rgb(vec3(r*r*0.9+0.6, 1., 1.));
 
+        //environment lighting
         if(!touching) { //break if not touching something
-            appearanceCol += multiplier * vec3(0.4, 0.8, 1.);
+            appearanceCol += multiplier * vec3(0.7, 0.8, 1.);
         }
 
         //average the result with the previous frames' results
@@ -387,7 +396,7 @@ function main() {
     var texUniformLocation = gl.getUniformLocation(program, "u_texture");
     //uniform camPos
     var camPosUniformLocation = gl.getUniformLocation(program, "u_camPos");
-    var camDist = 2;
+    var camDist = 3;
     gl.uniform3fv(camPosUniformLocation, new Float32Array([0, 0, -camDist]));
     //uniform angle
     var angleUniformLocation = gl.getUniformLocation(program, "u_angle");
@@ -447,7 +456,7 @@ function main() {
     var loop = function() {
         //resize canvas
         resizeCanvas(canvas);
-        if(numSamples < 100) {
+        if(numSamples < 300) {
             gl.uniform1f(numSamplesUniformLocation, new Float32Array([numSamples]));
             numSamples ++;
 
