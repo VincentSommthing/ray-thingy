@@ -12,11 +12,25 @@
                 position: fixed;
                 left:0px;
                 top:0px;
+                z-index: 1;
+            }
+            .slidecontainer {
+                posittion: absolute;
+                left: 0px;
+                top: 0px;
+                z-index: 30;
+            }
+            #slider {
+                position: absolute;
+                z-index: 30;
             }
         </style>
     </head>
     <body>
         <canvas id="idk" width="600" height="600"></canvas>
+        <div class="slidecontainer">
+            <input type="range" min="1.0" max="10.0" value="8.0" id="slider" id="myRange" step="any">
+        </div>
     </body>
     <script src="bulb.js"></script>
 </html>

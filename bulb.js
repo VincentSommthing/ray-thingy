@@ -1,6 +1,8 @@
 //https://stackoverflow.com/questions/22570235/how-do-i-use-an-html5-canvas-as-a-webgl-texture
 //https://webglfundamentals.org/webgl/lessons/webgl-3d-textures.html
 //https://stackoverflow.com/questions/14607640/rotating-a-vector-in-3d-space
+//https://mathworld.wolfram.com/SpherePointPicking.html
+// http://blog.hvidtfeldts.net/index.php/2011/09/distance-estimated-3d-fractals-v-the-mandelbulb-different-de-approximations/
 
 var vertexShaderText = `#version 300 es
     precision highp float;
@@ -17,9 +19,9 @@ var vertexShaderText = `#version 300 es
     uniform float u_angle;
 
     void main() {
-        vec3 aspectRatio = vec3(u_resolution/u_minRes, 1.0);
+        vec3 aspectRatio = vec3(u_resolution/u_minRes, 1.0); //vector whos aspect ratio is equal to that of the screen, and the smallest legnth is 2
 
-        vec3 scaledDir = vertDirection * vec3(u_resolution/u_minRes, 1.0);
+        vec3 scaledDir = vertDirection * vec3(u_resolution/u_minRes, 1.8);
         vec2 rotatedDir = vec2(-1.0, 1.0) * scaledDir.zx * sin(u_angle) + scaledDir.xz * cos(u_angle);
 
         fragDir = vec3(rotatedDir.x, scaledDir.y, rotatedDir.y);
@@ -39,57 +41,112 @@ var fragShaderText = `#version 300 es
     uniform float u_numSamples;
     uniform sampler2D u_texture;
     uniform vec3 u_camPos;
+    uniform float u_power;
 
     vec3 rayDir;
     vec3 rayPos;
     vec3 lastPos;
+    vec3 color;
     float lastDist;
     float currDist;
-    vec3 appearanceCol;
-    vec3 surfaceCol;
+    float r;
     bool finalGettingSmall;
+    bool touching;
 
     float seed;
 
-    float dist(vec3 pos) {
-        return min(length(pos)-1.0, distance(pos, vec3(0.8, 0.8, -0.7))-0.2);
+    vec3 hsv2rgb(vec3 c) {
+        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
     }
 
-    vec3 gradient(vec3 pos1) {
-        vec3 pos2 = pos1 + vec3(0.01);
-        return (vec3(dist(pos1)) - vec3(
+    float dist(vec3 pos) {
+        vec3 z = pos;
+        float dr = 1.0;
+        r = 0.0;
+        for (int i = 0; i < 8; i++) {
+            r = length(z);
+            if (r>2.) break;
+
+            // convert to polar coordinates
+            float theta = acos(z.z/r);
+            float phi = atan(z.y,z.x);
+            dr =  pow( r,u_power-1.0)*u_power*dr + 1.0;
+
+            // scale and rotate the point
+            float zr = pow( r,u_power);
+            theta = theta*u_power;
+            phi = phi*u_power;
+
+            // convert back to cartesian coordinates
+            z = zr*vec3(sin(theta)*cos(phi), sin(phi)*sin(theta), cos(theta));
+            z+=pos;
+        }
+        return 0.5*log(r)*r/dr;
+    }
+
+    vec3 findNormal(vec3 pos1) {
+        vec3 pos2 = pos1 + vec3(0.001);
+        //return normalized gradient
+        return normalize((vec3(dist(pos1)) - vec3(
             dist(vec3(pos2.x, pos1.y, pos1.z)),
             dist(vec3(pos1.x, pos2.y, pos1.z)),
             dist(vec3(pos1.x, pos1.y, pos2.z))
-        )) / (pos1 - pos2);
+        )) / (pos1 - pos2));
+    }
+
+    vec3 checker(vec3 pos, float size) {
+        return floor(mod(pos*size, 2.) - vec3(1.))*0.5 + vec3(0.5);
     }
 
     float kindaRand(float x) {
-        return mod(0.6180339887499 * (x + seed), 1.0);
         seed += x+1.0;
+        return mod(0.6180339887499 * (x + seed), 1.0);
     }
 
     float veryRand(float x, float y) {
-        return mod(sqrt(abs(x*y + seed))*100.0, 1.0);
         seed += 0.6180339887499;
+        return mod(sqrt(abs(x*y + seed))*100.0, 1.0);
     }
 
     float veryVeryRand(float x) {
         return veryRand(veryRand(kindaRand(x), seed), seed + 29.33);
     }
 
+    vec3 randSphere(vec3 normal, float x) {
+        //theta = random value between 0 and pi
+        float theta = veryVeryRand(11.93*x) * 3.14159265358979323846264338327950288419716939937510582097494592307816406286208986280348253421170679;
+        //u = random value between -1 and 1
+        float u = veryVeryRand(93.331*x)*2.-1.;
+
+        vec3 outDir = vec3(
+            sqrt(1.-u*u) * cos(theta),
+            sqrt(1.-u*u) * sin(theta),
+            u
+        );
+
+        outDir = normalize(2.*vec3(veryVeryRand(2.9), veryVeryRand(3.2), veryVeryRand(2.1))-vec3(1.));
+
+        return outDir * sign(dot(outDir, normal));
+    }
+
     void step() {
         lastDist = currDist;
         lastPos = rayPos;
-        rayPos += rayDir * max(abs(lastDist), 0.01);
+        rayPos += rayDir * max(abs(lastDist), 0.002);
         currDist = dist(rayPos);
     }
 
     void march() {
         bool gettingSmall;
-        for(int i = 0; (i < 50 && !gettingSmall); i++) {
+        int i = 0;
+        for(; (i < 100 && !gettingSmall); i++) {
             step();
             gettingSmall = currDist < min(0.0, lastDist);
+            if(currDist > lastDist && currDist > 2.) {
+                break;
+            }
         }
 
         if(gettingSmall) {
@@ -98,32 +155,70 @@ var fragShaderText = `#version 300 es
         }
 
         finalGettingSmall = gettingSmall;
+        touching = gettingSmall || i == 100;
     }
 
     void main() {
+        color = vec3(0.9);
         seed = 15.9*u_numSamples + gl_FragCoord.x + u_resolution.x*gl_FragCoord.y;
 
+        vec3 appearanceCol = vec3(0.);
+        vec3 multiplier = vec3(1.);
         rayPos = u_camPos;
-        
         vec2 randOffset = u_pixelSize * vec2(kindaRand(1.0), kindaRand(3.0));
         rayDir = normalize(fragDir + vec3(randOffset, 0.0));
 
-        //first march to object
-        lastDist = 10.0;
+        lastDist = dist(rayPos);
+        currDist = lastDist;
+        //ray stuff
         march();
-        vec3 normal = gradient(rayPos);
-        
-        if(dist(rayPos) <= lastDist && lastDist < 0.01) {//if touching the object, do all the ray calculations
-            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 3.0*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
+        vec3 normal;
+        vec3 hitPos;
+        vec3 lastHitPos;
+        float lastHitDist;
+        float hitDist;
+        bool idkGettingSmall;
+
+        int finalI = 0;
+
+        for(int i = 0; i < 4 && touching; i++) { 
+            multiplier *= hsv2rgb(vec3(r*r*0.9+0.6, 1., 1.)); //multiply by color
+            normal = findNormal(rayPos);
+            hitPos = rayPos;
+            lastHitDist = lastDist;
+            hitDist = currDist;
+            lastHitPos = lastPos;
+            
+            
+            bool idkGettingSmall = finalGettingSmall;
+
+            //next event estimation
+            //shoot ray at the light
+            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 1.8*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
             march();
-            appearanceCol = vec3(!finalGettingSmall) * dot(normal, rayDir);
-        } else {
-            appearanceCol = vec3(0.0);
+           
+            //add to the appearanceCol if there is nothing blocking the path of the light
+            appearanceCol += vec3(!finalGettingSmall)*dot(normal, rayDir)*vec3(1.0, 0.8, 0.7) * multiplier;
+
+            //shoot ray in random direction
+            rayDir = randSphere(normal, float(i)*89.13);
+            rayPos = hitPos;
+            lastDist = lastHitDist;
+            currDist = hitDist;
+            lastPos = lastHitPos;
+            finalGettingSmall = idkGettingSmall;
+            multiplier *= dot(normal, rayDir);
+            march();
+            
         }
 
+        if(!touching) { //break if not touching something
+            appearanceCol += multiplier * vec3(0.4, 0.8, 1.);
+        }
+
+        //average the result with the previous frames' results
         appearanceCol = (appearanceCol + u_numSamples * texture(u_texture, fragTexCoord).xyz) / (u_numSamples + 1.0);
 
-        //col = texture(u_texture, fragTexCoord).x;
 
         fragColor = vec4(appearanceCol, 1.0);
     }
@@ -151,6 +246,7 @@ document.body.onmouseleave = function() {
 
 function main() {
     const canvas = document.getElementById("idk");
+    const slider = document.getElementById("slider");
     var mousePos = [0, 0];
     var prevMousePos = [0, 0];
     var angle = 0;
@@ -291,9 +387,12 @@ function main() {
     var texUniformLocation = gl.getUniformLocation(program, "u_texture");
     //uniform camPos
     var camPosUniformLocation = gl.getUniformLocation(program, "u_camPos");
-    gl.uniform3fv(camPosUniformLocation, new Float32Array([0, 0, -3]));
+    var camDist = 2;
+    gl.uniform3fv(camPosUniformLocation, new Float32Array([0, 0, -camDist]));
     //uniform angle
     var angleUniformLocation = gl.getUniformLocation(program, "u_angle");
+    //uniform power
+    var powerUniformLocation = gl.getUniformLocation(program, "u_power");
     }
 
     var minRes;
@@ -327,13 +426,18 @@ function main() {
         if(mouseDown) {
             angle += -0.01*(mousePos[0] - prevMousePos[0]);
             gl.uniform1f(angleUniformLocation, new Float32Array([angle]));
-            var sin = 3*Math.sin(angle + Math.PI);
-            var cos = 3*Math.cos(angle + Math.PI);
+            var sin = camDist*Math.sin(angle + Math.PI);
+            var cos = camDist*Math.cos(angle + Math.PI);
             gl.uniform3fv(camPosUniformLocation, new Float32Array([-sin, 0, cos]));
             numSamples = 0;
         }
     }
 
+    gl.uniform1f(powerUniformLocation, new Float32Array([slider.value]));
+    slider.oninput = function() {
+        gl.uniform1f(powerUniformLocation, new Float32Array([this.value]));
+        numSamples = 0;
+    }
     //resizeCanvas(canvas);
 
     //uniform numSamples
@@ -343,19 +447,20 @@ function main() {
     var loop = function() {
         //resize canvas
         resizeCanvas(canvas);
+        if(numSamples < 100) {
+            gl.uniform1f(numSamplesUniformLocation, new Float32Array([numSamples]));
+            numSamples ++;
 
-        gl.uniform1f(numSamplesUniformLocation, new Float32Array([numSamples]));
-        numSamples ++;
-        
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.DEPTH_BUFFER_BIT);
-        gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+            gl.clearColor(0, 0, 0, 1);
+            gl.clear(gl.DEPTH_BUFFER_BIT);
+            gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
-        //copy canvas to texture
-        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, gl.canvas);
-        
+            //copy canvas to texture
+            gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, gl.canvas);
+        }
         //turn this on to update every frame
+        
         requestAnimationFrame(loop);
     }
     loop();
