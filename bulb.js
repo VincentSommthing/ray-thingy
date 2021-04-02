@@ -181,7 +181,7 @@ var fragShaderText = `#version 300 es
 
         int finalI = 0;
 
-        for(int i = 0; i < 4 && touching; i++) { 
+        for(int i = 0; i < 3 && touching; i++) { 
             float rSq = r*r;
 
             multiplier *= hsv2rgb(vec3(rSq*0.9+0.6, 1., 1.)); //multiply by color
@@ -195,7 +195,7 @@ var fragShaderText = `#version 300 es
             bool idkGettingSmall = finalGettingSmall;
 
             //add emission
-            appearanceCol += multiplier * float(0.4 < rSq && rSq < 0.6) * 2.;
+            //appearanceCol += multiplier * float(0.4 < rSq && rSq < 0.6) * 2.;
 
             //next event estimation
             //shoot ray at the light
@@ -218,7 +218,10 @@ var fragShaderText = `#version 300 es
             march();
             
         }
+        //color
         //appearanceCol = hsv2rgb(vec3(r*r*0.9+0.6, 1., 1.));
+        //normal
+        //appearanceCol = findNormal(rayPos) * float(touching);
 
         //environment lighting
         if(!touching) { //break if not touching something
@@ -396,7 +399,7 @@ function main() {
     var texUniformLocation = gl.getUniformLocation(program, "u_texture");
     //uniform camPos
     var camPosUniformLocation = gl.getUniformLocation(program, "u_camPos");
-    var camDist = 3;
+    var camDist = 2;
     gl.uniform3fv(camPosUniformLocation, new Float32Array([0, 0, -camDist]));
     //uniform angle
     var angleUniformLocation = gl.getUniformLocation(program, "u_angle");
@@ -427,7 +430,7 @@ function main() {
         }
     };
 
-    
+    //mouse dragging
     canvas.onmousemove = function(event) {
         prevMousePos[0] = mousePos[0];
         prevMousePos[1] = mousePos[1];
@@ -442,11 +445,19 @@ function main() {
         }
     }
 
+    //slider moving
     gl.uniform1f(powerUniformLocation, new Float32Array([slider.value]));
     slider.oninput = function() {
         gl.uniform1f(powerUniformLocation, new Float32Array([this.value]));
         numSamples = 0;
     }
+
+    //mouse scrolling
+    window.scrollTo(0, (document.body.scrollHeight - window.innerHeight)/2);//set window to middle
+    window.onscroll = function (e) {  
+        console.log(Math.random());
+        window.scrollTo(0, (document.body.scrollHeight - window.innerHeight)/2);
+    } 
     //resizeCanvas(canvas);
 
     //uniform numSamples
