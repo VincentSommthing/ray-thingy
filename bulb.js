@@ -42,6 +42,7 @@ var fragShaderText = `#version 300 es
     uniform sampler2D u_texture;
     uniform vec3 u_camPos;
     uniform float u_power;
+    uniform int targetSteps;
 
     vec3 rayDir;
     vec3 rayPos;
@@ -52,6 +53,7 @@ var fragShaderText = `#version 300 es
     float r;
     bool finalGettingSmall;
     bool touching;
+    int stepsTaken;
 
     float seed;
 
@@ -131,18 +133,19 @@ var fragShaderText = `#version 300 es
         return outDir * sign(dot(outDir, normal));
     }
 
-    void step() {
+    void doStep() {
         lastDist = currDist;
         lastPos = rayPos;
         rayPos += rayDir * max(abs(lastDist), 0.002);
         currDist = dist(rayPos);
+        stepsTaken ++;
     }
 
     void march() {
         bool gettingSmall;
         int i = 0;
         for(; (i < 100 && !gettingSmall); i++) {
-            step();
+            doStep();
             gettingSmall = currDist < min(0.0, lastDist);
             if(currDist > lastDist && currDist > 2.) {
                 break;
@@ -159,74 +162,85 @@ var fragShaderText = `#version 300 es
     }
 
     void main() {
+        stepsTaken=0;
         color = vec3(0.9);
-        seed = 15.9*u_numSamples + gl_FragCoord.x + u_resolution.x*gl_FragCoord.y;
+        seed = 15.9*u_numSamples; //15.9*u_numSamples + gl_FragCoord.x + u_resolution.x*gl_FragCoord.y;
 
+        
         vec3 appearanceCol = vec3(0.);
-        vec3 multiplier = vec3(1.);
-        rayPos = u_camPos;
-        vec2 randOffset = u_pixelSize * vec2(kindaRand(1.0), kindaRand(3.0));
-        rayDir = normalize(fragDir + vec3(randOffset, 0.0));
 
-        lastDist = dist(rayPos);
-        currDist = lastDist;
-        //ray stuff
-        march();
-        vec3 normal;
-        vec3 hitPos;
-        vec3 lastHitPos;
-        float lastHitDist;
-        float hitDist;
-        bool idkGettingSmall;
+        for(int i=0; i<1; i++) {
+            vec3 multiplier = vec3(1.);
+            rayPos = u_camPos;
+            vec2 randOffset = u_pixelSize * vec2(kindaRand(1.0), kindaRand(3.0));
+            rayDir = normalize(fragDir + vec3(randOffset, 0.0));
 
-        int finalI = 0;
-
-        for(int i = 0; i < 3 && touching; i++) { 
-            float rSq = r*r;
-
-            multiplier *= hsv2rgb(vec3(rSq*0.9+0.6, 1., 1.)); //multiply by color
-            normal = findNormal(rayPos);
-            hitPos = rayPos;
-            lastHitDist = lastDist;
-            hitDist = currDist;
-            lastHitPos = lastPos;
-            
-            
-            bool idkGettingSmall = finalGettingSmall;
-
-            //add emission
-            //appearanceCol += multiplier * float(0.4 < rSq && rSq < 0.6) * 2.;
-
-            //next event estimation
-            //shoot ray at the light
-            rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 1.8*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
+            lastDist = dist(rayPos);
+            currDist = lastDist;
+            //ray stuff
             march();
-           
-            //add to the appearanceCol if there is nothing blocking the path of the light
-            appearanceCol += vec3(!finalGettingSmall)*dot(normal, rayDir)*vec3(1.0, 0.8, 0.7) * multiplier;
+            vec3 normal;
+            vec3 hitPos;
+            vec3 lastHitPos;
+            float lastHitDist;
+            float hitDist;
+            bool idkGettingSmall;
+
+            int finalI = 0;
+
+            for(int j = 0; j < 10 && touching; j++) { 
+                float rSq = r*r;
+
+                multiplier *= hsv2rgb(vec3(rSq*0.9+0.6, 1., 1.)); //multiply by color
+                normal = findNormal(rayPos);
+                hitPos = rayPos;
+                lastHitDist = lastDist;
+                hitDist = currDist;
+                lastHitPos = lastPos;
+
+
+                bool idkGettingSmall = finalGettingSmall;
+
+                //add emission
+                //appearanceCol += multiplier * float(0.4 < rSq && rSq < 0.6) * 2.;
+
+                //next event estimation
+                //shoot ray at the light
+                rayDir = normalize(vec3(-u_camPos.z, 2.0,-u_camPos.x) + 1.8*vec3(veryVeryRand(5.1), veryVeryRand(8.5), veryVeryRand(4.6)));
+                march();
+
+                //add to the appearanceCol if there is nothing blocking the path of the light
+                appearanceCol += vec3(!finalGettingSmall)*dot(normal, rayDir)*vec3(1.0, 0.8, 0.7) * multiplier;
 
 
 
-            //shoot ray in random direction
-            rayDir = randSphere(normal, float(i)*89.13);
-            rayPos = hitPos;
-            lastDist = lastHitDist;
-            currDist = hitDist;
-            lastPos = lastHitPos;
-            finalGettingSmall = idkGettingSmall;
-            multiplier *= dot(normal, rayDir);
-            march();
-            
+                //shoot ray in random direction
+                rayDir = randSphere(normal, float(i)*89.13);
+                rayPos = hitPos;
+                lastDist = lastHitDist;
+                currDist = hitDist;
+                lastPos = lastHitPos;
+                finalGettingSmall = idkGettingSmall;
+                multiplier *= dot(normal, rayDir);
+                march();
+
+            }
+
+            //environment lighting
+            if(!touching) { //break if not touching something
+                appearanceCol += multiplier * vec3(0.7, 0.8, 1.);
+            }
+
+            //color
+            //appearanceCol = hsv2rgb(vec3(r*r*0.9+0.6, 1., 1.));
+            //normal
+            //appearanceCol = findNormal(rayPos) * float(touching);
+
+            //ao
+            //appearanceCol = vec3(exp(0.02*float(-stepsTaken)));
+            //appearanceCol = touching?appearanceCol:vec3(0);
         }
-        //color
-        //appearanceCol = hsv2rgb(vec3(r*r*0.9+0.6, 1., 1.));
-        //normal
-        //appearanceCol = findNormal(rayPos) * float(touching);
 
-        //environment lighting
-        if(!touching) { //break if not touching something
-            appearanceCol += multiplier * vec3(0.7, 0.8, 1.);
-        }
 
         //average the result with the previous frames' results
         appearanceCol = (appearanceCol + u_numSamples * texture(u_texture, fragTexCoord).xyz) / (u_numSamples + 1.0);
@@ -435,7 +449,7 @@ function main() {
         prevMousePos[0] = mousePos[0];
         prevMousePos[1] = mousePos[1];
         mousePos = getMousePos(canvas, event);
-        if(mouseDown) {
+        if(mouseDown && playing) {
             angle += -0.01*(mousePos[0] - prevMousePos[0]);
             gl.uniform1f(angleUniformLocation, new Float32Array([angle]));
             var sin = camDist*Math.sin(angle + Math.PI);
@@ -455,7 +469,7 @@ function main() {
     //mouse scrolling
     window.scrollTo(0, (document.body.scrollHeight - window.innerHeight)/2);//set window to middle
     window.onscroll = function (e) {  
-        console.log(Math.random());
+        //console.log(Math.random());
         window.scrollTo(0, (document.body.scrollHeight - window.innerHeight)/2);
     } 
     //resizeCanvas(canvas);
@@ -464,6 +478,25 @@ function main() {
     var numSamplesUniformLocation = gl.getUniformLocation(program, "u_numSamples");
     var numSamples = 0;
     
+    
+    var topLeftText = document.getElementById("topLeftText");
+
+    var lastT = performance.now();
+    var lastFps = 60;
+
+    //pause/play functionality
+    var playing = true;
+    var pauseBtn = document.getElementById("pauseBtn");
+    pauseBtn.onclick = function() {
+        playing = !playing;
+        requestAnimationFrame(loop);
+        if(playing) {
+            pauseBtn.innerText = "Pause";
+        } else {
+            pauseBtn.innerText = "Play";
+        }
+    }
+
     var loop = function() {
         //resize canvas
         resizeCanvas(canvas);
@@ -479,12 +512,28 @@ function main() {
             gl.bindTexture(gl.TEXTURE_2D, targetTexture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, gl.canvas);
         }
+
+        //calculate time per frame
+        var currentT = performance.now();
+        var spf = Math.round((currentT - lastT)/10)/100;
+        var currentFps = Math.round(1000/(currentT-lastT));
+        var fps = Math.round(10*Math.min(lastFps + currentFps))/10; //min current and last fps and round to nearest tenth
+        lastT = currentT;
+        lastFps = currentFps;
+
+        topLeftText.innerHTML = 
+            spf + " sec/frame<br>" + 
+            fps + " fps<br>" +
+            numSamples + " sample" + (numSamples===1?"":"s")
+        ;
+
         //turn this on to update every frame
-        
-        requestAnimationFrame(loop);
+        if(playing) {requestAnimationFrame(loop);}
     }
-    loop();
-    //requestAnimationFrame(loop);
+
+
+    //loop();
+    requestAnimationFrame(loop);
     
     console.log("this is working :D");
 }
