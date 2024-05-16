@@ -3,7 +3,7 @@
 <html>
     <head>
         <meta charset="utf-8">
-        <title>Ray Thingy</title>
+        <title>Fast mandelbrot</title>
         <style>
             #idk {
                 width: 100vw;
@@ -15,7 +15,7 @@
                 z-index: 1;
             }
             .slidecontainer {
-                posittion: fixed;
+                position: fixed;
                 left: 50%;
                 top: 0px;
                 z-index: 30;
@@ -31,14 +31,49 @@
                 position: relative;
                 z-index: 31;
             }
+            #topLeftContainer {
+                position: fixed;
+                top: 0px;
+                left: 0px;
+                z-index: 30;
+                margin: 2.5px;
+            }
+            #topLeftTextContainer {
+                z-index: 30;
+                padding: 5px;
+                margin:2.5px;
+                background: rgba(0,0,0,0.5);
+            }
+            #topLeftText {
+                margin:5px;
+                z-index:30;
+                color: white;
+                font: 15px Arial;
+            }
+            button {
+                margin: 5px;
+                padding: 2.5px;
+            }
         </style>
     </head>
     <body>
         <canvas id="idk" width="600" height="600"></canvas>
+
         <div class="slidecontainer">
             <input type="range" min="1.0" max="10.0" value="8.0" id="slider" id="myRange" step="any">
         </div>
-        <div><p id="hi">hi</p></div>
+
+        <div>
+            <p id="hi">hi</p>
+        </div>
+
+        <div id="topLeftContainer">
+            <div id="topLeftTextContainer">
+                <p id="topLeftText">loading...</p>
+
+            </div>
+            <button type="button" id="pauseBtn">Pause</button>
+        </div>
     </body>
     <script src="bulb.js"></script>
 </html>
